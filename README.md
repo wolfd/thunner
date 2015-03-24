@@ -10,7 +10,7 @@ Requirements
 
 * Python 2
 * [Simon Weber's Unofficial Google Music API][weber]
-* mplayer
+* [mpv](http://mpv.io/)
 * Some songs on Google Play Music
 * One or more internets
 * A colour terminal
@@ -36,12 +36,19 @@ Configuration
 
 Configuration of thunner is via `~/.thunnerrc`. An example file is as follows:
 
-	      email <your e-mail address here>
-	      pass <your password here>
-	      color mycolor blue default
-	      assign mycolor header-text
+        email <your e-mail address here>
+        pass <your password here>
+        deviceid 1234567890123456
+        color myhighlight black yellow
+        color mynormal white black
+        assign myhighlight current-item
+        assign mynormal text
 
-`email` and `pass` are required (yes, plaintext password is not exactly secure). Spaces are allowed in `pass`. Any number of `color` and `assign` lines are allowed. 
+`email`, `pass` and `deviceid` are required (yes, plaintext password is not exactly secure). Spaces are allowed in `pass`. Any number of `color` and `assign` lines are allowed.
+
+An "app password" can be used to avoid storing your Google password in plaintext, this is strongly recommended. These can be obtained [here](https://security.google.com/settings/security/apppasswords). App passwords are also the only way to use thunner if you have 2-factor auth set up.
+
+`deviceid` is a mobile device ID. This 16-digit hexadecimal string can be found by dialing `*#*#8255#*#*` or downloading [this DeviceID app](https://play.google.com/store/apps/details?id=com.evozi.deviceid) from the Google Play Store.
 
 `color` takes three arguements: a name (which the user chooses), a foreground colour and a background colour. Foreground and background colours can be of the following values:
 
