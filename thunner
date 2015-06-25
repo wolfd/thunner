@@ -32,6 +32,7 @@ import locale
 import subprocess
 import collections
 import sys
+import re
 
 # Disable InsecureRequestWarning reporting
 import requests
@@ -75,6 +76,8 @@ def parse_config():
             if 'pass' not in config:
                     # If Password not in Config, ask for it
                 config['pass'] = getpass()
+            if 'deviceid' not in config:
+                config['deviceid'] = None
     except IOError:
         print "Can't find ~/.thunnerrc"
         sys.exit()
@@ -332,6 +335,16 @@ def main():
         if not api.is_authenticated():
             print "Credentials were not accepted. Exiting..."
             return
+
+        if config['deviceid'] is None:
+            devices = filter(
+                lambda dev: dev['type'] in ['IOS', 'ANDROID'],
+                api.get_registered_devices())
+            if len(devices) > 0:
+                config['deviceid'] = re.sub(r'0x', '', devices[0]['id'])
+            else:
+                print "No already-registered mobile devices found. Exiting..."
+                return
 
         library = api.get_all_songs()
         artists, albums = gen_trees(library)
