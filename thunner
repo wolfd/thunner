@@ -518,8 +518,10 @@ class Player:
         # with open(os.devnull, 'w') as temp:
         with open('mpv.out', 'w') as temp:
             self.playing = subprocess.Popen(
-                ["mpv", "--no-video", "%s" % song], stdin=subprocess.PIPE,
-                stdout=temp, stderr=subprocess.PIPE, bufsize=0)
+                ["mpv", "--no-video", "--status-msg='${percent-pos}'",
+                 "%s" % song],
+                stdin=subprocess.PIPE, stdout=temp,
+                stderr=subprocess.PIPE, bufsize=0)
         if self.stat_reader is not None:
             self.stat_reader.join()
         self.stat_reader = Thread(target=self.read_mpv_status)
@@ -543,9 +545,9 @@ class Player:
         while True:
             try:
                 out = self.playing.stderr.readline()
-                prog = re.search(r'\(([0-9]+)%\)', out)
+                prog = re.search(r'^[0-9]{1,2}$', out)
                 if prog is not None:
-                    self.progress = prog.group(1)
+                    self.progress = prog.group(0)
             except Exception:
                 break
 
