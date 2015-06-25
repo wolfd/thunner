@@ -14,31 +14,30 @@
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL COPYRIGHT HOLDERS OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
 import curses
 import os
-import time
 import locale
 import subprocess
 import collections
 import sys
-import signal
 
 # Disable InsecureRequestWarning reporting
 import requests
 requests.packages.urllib3.disable_warnings()
 
-from Queue import Queue, Empty
+from Queue import Queue
 from threading import Thread
 from gmusicapi import Mobileclient
 from getpass import getpass
@@ -143,7 +142,8 @@ def drawstring(scr, y, x, width, cslist, code, colors, colormap):
         col = i[1]
         if (width - x) > 0:
             scr.addnstr(
-                y, x, s.encode(code), width - x, curses.color_pair(colors[colormap[col]]))
+                y, x, s.encode(code), width - x,
+                curses.color_pair(colors[colormap[col]]))
         x += len(s)
 
 
@@ -177,7 +177,8 @@ def footer(scr, height, width, status, code, colors, colormap):
     drawstring(scr, height - 1, 0, width, status, code, colors, colormap)
 
 
-def drawlist(scr, list_height, width, offset, songs, item, code, colors, colormap):
+def drawlist(scr, list_height, width, offset, songs, item, code, colors,
+             colormap):
     n_songs = len(songs)
     top_half = list_height // 2
     bottom_half = list_height - top_half
@@ -202,10 +203,12 @@ def drawlist(scr, list_height, width, offset, songs, item, code, colors, colorma
             try:
                 if i == item:
                     drawline(
-                        scr, offset + i - cl, width, slen, (s, colors[colormap['current-item']]))
+                        scr, offset + i - cl, width, slen,
+                        (s, colors[colormap['current-item']]))
                 else:
                     drawline(
-                        scr, offset + i - cl, width, slen, (s, colors[colormap['text']]))
+                        scr, offset + i - cl, width, slen,
+                        (s, colors[colormap['text']]))
             except curses.error:
                 pass
         else:
@@ -219,7 +222,8 @@ def pause(p, q):
 def play(song):
     with open(os.devnull, 'w') as temp:
         proc = subprocess.Popen(
-            ["mpv", "-no-video", "%s" % song], stdin=subprocess.PIPE, stdout=temp, stderr=temp)
+            ["mpv", "-no-video", "%s" % song], stdin=subprocess.PIPE,
+            stdout=temp, stderr=temp)
         return proc
 
 
@@ -261,13 +265,18 @@ def gen_trees(library):
             if album == "":
                 album_name = "Untitled Album"
             albums_of_artist.append({"name": album_name,
-                                     "subtree": sorted(tracks, key=itemgetter('trackNumber')),
+                                     "subtree": sorted(
+                                         tracks,
+                                         key=itemgetter('trackNumber')),
                                      "subtreeline": 0})
         albums = albums + albums_of_artist
         artists.append({"name": artist,
-                        "subtree": sorted(albums_of_artist, key=lambda x: x['name'].lower()),
+                        "subtree": sorted(
+                            albums_of_artist,
+                            key=lambda x: x['name'].lower()),
                         "subtreeline": 0})
-    return sorted(artists, key=lambda x: x['name'].lower()), sorted(albums, key=lambda x: x['name'].lower())
+    return (sorted(artists, key=lambda x: x['name'].lower()),
+            sorted(albums, key=lambda x: x['name'].lower()))
 
 
 def list_playlists(playlists_contents):
@@ -332,12 +341,14 @@ def main():
 
         scr.clear()
         toplevel = {"name": "Toplevel",
-                    "subtree": [{"name": "Artists", "subtree": artists, "subtreeline": 0},
+                    "subtree": [{"name": "Artists", "subtree": artists,
+                                 "subtreeline": 0},
                                 {"name": "Albums", "subtree": albums,
                                     "subtreeline": 0},
                                 {"name": "Songs", "subtree": library,
                                     "subtreeline": 0},
-                                {"name": "Playlists", "subtree": playlists, "subtreeline": 0}],
+                                {"name": "Playlists", "subtree": playlists,
+                                 "subtreeline": 0}],
                     "subtreeline": 0}
 
         c_menu = toplevel
@@ -374,7 +385,8 @@ def main():
                 # We've had no input
                 # Let's check if a song has stopped playing and we need to play
                 # the next in the queue
-                if isinstance(playing, subprocess.Popen) and playing.poll() != None:
+                if (isinstance(playing, subprocess.Popen) and
+                        playing.poll() is not None):
                     # Song has stopped playing
                     q_n = (q_n + 1) % len(queue)
                     song = queue[q_n]
@@ -464,16 +476,19 @@ def main():
             # Redraw the screen
             scr.erase()
             header(scr, width, previous, c_menu, code, colors, colormap)
-            if current_song == None:
+            if current_song is None:
                 footer(
-                    scr, height, width, [(status, 'status')], code, colors, colormap)
+                    scr, height, width, [(status, 'status')], code, colors,
+                    colormap)
             else:
-                footer(scr, height, width, [(status, 'status'),
-                                            (' ', 'text'),
-                                            (current_song[
-                                             'artist'], 'current-artist'),
-                                            (' - ', 'footer-sep'),
-                                            (current_song['title'] if 'title' in current_song else 'Unknown Track', 'current-song')], code, colors, colormap)
+                footer(scr, height, width,
+                       [(status, 'status'),
+                        (' ', 'text'),
+                        (current_song['artist'], 'current-artist'),
+                        (' - ', 'footer-sep'),
+                        (current_song['title'] if 'title' in current_song else
+                            'Unknown Track', 'current-song')],
+                       code, colors, colormap)
             drawlist(scr, viewheight, width, header_height,
                      c_list, c_item, code, colors, colormap)
             scr.refresh()
