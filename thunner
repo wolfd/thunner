@@ -545,9 +545,9 @@ class Player:
         while True:
             try:
                 out = self.playing.stderr.readline()
-                prog = re.search(r'^[0-9]{1,2}$', out)
+                prog = re.search(r'([0-9]{1,2})', out)
                 if prog is not None:
-                    self.progress = prog.group(0)
+                    self.progress = prog.group(1)
             except Exception:
                 break
 
