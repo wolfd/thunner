@@ -44,8 +44,9 @@ Configuration of thunner is via `~/.thunnerrc`. An example file is as follows:
         assign myhighlight current-item
         assign mynormal text
 
-* `email` is required.
-* `pass` is not required, although if it is omitted, you will be prompted for your password on each startup. Spaces are allowed in `pass`.
+`email` is required.
+`pass` is not required, although if it is omitted, you will be prompted for your password on each startup. Spaces are allowed in `pass`.
+Any number of `color` and `assign` lines are allowed.
 
 An "app password" can be used to avoid storing your Google password in plaintext, this is strongly recommended. These can be obtained [here](https://security.google.com/settings/security/apppasswords). App passwords are also the only way to use thunner if you have 2-factor auth set up.
 
