@@ -38,7 +38,7 @@ import re
 import requests
 requests.packages.urllib3.disable_warnings()
 
-# from threading import Thread
+from threading import Thread
 from gmusicapi import Mobileclient
 from getpass import getpass
 from operator import itemgetter
@@ -311,6 +311,7 @@ class Player:
     def __init__(self):
         self.progress = 0
         self.playing = None
+        self.stat_reader = None
 
     def run(self):
 
@@ -408,11 +409,10 @@ class Player:
                         # Song has stopped playing
                         q_n = (q_n + 1) % len(queue)
                         song = queue[q_n]
-                        self.playing = self.play(
-                            api.get_stream_url(song['id'], config['deviceid']))
+                        self.play(api.get_stream_url(song['id'],
+                                  config['deviceid']))
                         current_song = song
                 elif c == ord('q'):
-                    self.stop()
                     break
                 elif c == ord('\n') or c == ord(']'):
                     if c_list:
@@ -483,9 +483,6 @@ class Player:
                     else:
                         status = 'Playing:'
                     self.pause()
-                    # thread = Thread(target=pause, args=(self.playing, q))
-                    # thread.daemon = True
-                    # thread.start()
                 elif c == curses.KEY_RESIZE:
                     height, width = scr.getmaxyx()
                     viewheight = height - header_height - footer_height
@@ -522,16 +519,35 @@ class Player:
         with open('mpv.out', 'w') as temp:
             self.playing = subprocess.Popen(
                 ["mpv", "--no-video", "%s" % song], stdin=subprocess.PIPE,
-                stdout=temp, stderr=subprocess.PIPE)
+                stdout=temp, stderr=subprocess.PIPE, bufsize=0)
+        if self.stat_reader is not None:
+            self.stat_reader.join()
+        self.stat_reader = Thread(target=self.read_mpv_status)
+        self.stat_reader.start()
 
     def pause(self):
         if self.playing is not None:
-            self.playing.stdin.write(' ')
+            self.playing.stdin.write('p')
+            self.playing.stdin.flush()
 
     def stop(self):
-        if self.playing is not None:
-            self.playing.terminate()
-            self.playing = None
+        self.progress = 0
+        try:
+            if self.playing is not None:
+                self.playing.terminate()
+        except OSError:
+            pass  # No such process (already terminated), it's OK
+        self.playing = None
+
+    def read_mpv_status(self):
+        while True:
+            try:
+                out = self.playing.stderr.readline()
+                prog = re.search(r'\(([0-9]+)%\)', out)
+                if prog is not None:
+                    self.progress = prog.group(1)
+            except Exception:
+                break
 
 
 if __name__ == '__main__':
