@@ -115,7 +115,7 @@ def name_colors(colordefs):
 
 def apiinit(email, password):
     api = Mobileclient()
-    api.login(email, password)
+    api.login(email, password, Mobileclient.FROM_MAC_ADDRESS)
     return api
 
 
