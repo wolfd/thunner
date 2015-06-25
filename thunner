@@ -44,19 +44,20 @@ from gmusicapi import Mobileclient
 from getpass import getpass
 from operator import itemgetter
 
+
 def parse_config():
-    defaultcolors = { 'thunner':'default',
-                      'header-text':'default',
-                      'header-sep':'default',
-                      'header-border':'default',
-                      'footer-border':'default',
-                      'footer-sep':'default',
-                      'status':'default',
-                      'current-artist':'default',
-                      'current-song':'default',
-                      'current-item':'default',
-                      'text':'default' }
-    config = { 'colors':[], 'assignments':defaultcolors }
+    defaultcolors = {'thunner': 'default',
+                     'header-text': 'default',
+                     'header-sep': 'default',
+                     'header-border': 'default',
+                     'footer-border': 'default',
+                     'footer-sep': 'default',
+                     'status': 'default',
+                     'current-artist': 'default',
+                     'current-song': 'default',
+                     'current-item': 'default',
+                     'text': 'default'}
+    config = {'colors': [], 'assignments': defaultcolors}
     try:
         with open(os.path.expanduser("~/.thunnerrc")) as f:
             lines = f.readlines()
@@ -65,20 +66,21 @@ def parse_config():
                 if words[0] == 'email':
                     config['email'] = words[1]
                 elif words[0] == 'pass':
-                    config['pass'] = i.split(' ',1)[1]
+                    config['pass'] = i.split(' ', 1)[1]
                 elif words[0] == 'deviceid':
                     config['deviceid'] = words[1]
                 elif words[0] == 'color':
-                    config['colors'].append((words[1],words[2],words[3]))
+                    config['colors'].append((words[1], words[2], words[3]))
                 elif words[0] == 'assign':
                     config['assignments'][words[2]] = words[1]
             if 'pass' not in config:
-		    # If Password not in Config, ask for it
-		    config['pass'] = getpass()
+                    # If Password not in Config, ask for it
+                config['pass'] = getpass()
     except IOError:
         print "Can't find ~/.thunnerrc"
         sys.exit()
     return config
+
 
 def color(c):
     if c == 'default':
@@ -100,20 +102,23 @@ def color(c):
     elif c == 'white':
         return curses.COLOR_WHITE
 
+
 def name_colors(colordefs):
-    colormap = { 'default':1 }
-    curses.init_pair(1,-1,-1)
+    colormap = {'default': 1}
+    curses.init_pair(1, -1, -1)
     c = 2
     for i in colordefs:
-        curses.init_pair(c,color(i[1]),color(i[2]))
+        curses.init_pair(c, color(i[1]), color(i[2]))
         colormap[i[0]] = c
         c += 1
     return colormap
 
-def apiinit(email,password):
+
+def apiinit(email, password):
     api = Mobileclient()
     api.login(email, password)
     return api
+
 
 def scrinit():
     stdscr = curses.initscr()
@@ -124,46 +129,55 @@ def scrinit():
     stdscr.keypad(1)
     return stdscr
 
+
 def scrrelease(s):
     curses.nocbreak()
     s.keypad(0)
     curses.echo()
     curses.endwin()
 
-def drawstring(scr,y,x,width,cslist,code,colors,colormap):
+
+def drawstring(scr, y, x, width, cslist, code, colors, colormap):
     for i in cslist:
         s = i[0]
         col = i[1]
         if (width - x) > 0:
-            scr.addnstr(y,x,s.encode(code),width-x,curses.color_pair(colors[colormap[col]]))
+            scr.addnstr(
+                y, x, s.encode(code), width - x, curses.color_pair(colors[colormap[col]]))
         x += len(s)
 
-def drawline(scr,y,width,slen,cs):
+
+def drawline(scr, y, width, slen, cs):
     s = cs[0]
     col = cs[1]
-    scr.addnstr(y,0,s,width,curses.color_pair(col))
-    for i in range(slen,width):
-        scr.addstr(y,slen,' ',curses.color_pair(col))
+    scr.addnstr(y, 0, s, width, curses.color_pair(col))
+    for i in range(slen, width):
+        scr.addstr(y, slen, ' ', curses.color_pair(col))
         slen += 1
 
-def header(scr,width,parents,current,code,colors,colormap):
-    locstring = [('thunner','thunner')]
+
+def header(scr, width, parents, current, code, colors, colormap):
+    locstring = [('thunner', 'thunner')]
     for i in parents[1:]:
-        locstring.append((' > ','header-sep'))
-        locstring.append((i['name'],'header-text'))
+        locstring.append((' > ', 'header-sep'))
+        locstring.append((i['name'], 'header-text'))
     if parents:
-        locstring.append((' > ','header-sep'))
-        locstring.append((current['name'],'header-text'))
-    drawstring(scr,0,0,width,locstring,code,colors,colormap)
-    for i in range(0,width):
-        scr.addch(1,i,curses.ACS_HLINE,curses.color_pair(colors[colormap['header-border']]))
+        locstring.append((' > ', 'header-sep'))
+        locstring.append((current['name'], 'header-text'))
+    drawstring(scr, 0, 0, width, locstring, code, colors, colormap)
+    for i in range(0, width):
+        scr.addch(1, i, curses.ACS_HLINE, curses.color_pair(
+            colors[colormap['header-border']]))
 
-def footer(scr,height,width,status,code,colors,colormap):
-    for i in range(0,width):
-        scr.addch(height-2,i,curses.ACS_HLINE,curses.color_pair(colors[colormap['footer-border']]))
-    drawstring(scr,height-1,0,width,status,code,colors,colormap)
 
-def drawlist(scr,list_height,width,offset,songs,item,code,colors,colormap):
+def footer(scr, height, width, status, code, colors, colormap):
+    for i in range(0, width):
+        scr.addch(height - 2, i, curses.ACS_HLINE,
+                  curses.color_pair(colors[colormap['footer-border']]))
+    drawstring(scr, height - 1, 0, width, status, code, colors, colormap)
+
+
+def drawlist(scr, list_height, width, offset, songs, item, code, colors, colormap):
     n_songs = len(songs)
     top_half = list_height // 2
     bottom_half = list_height - top_half
@@ -175,34 +189,41 @@ def drawlist(scr,list_height,width,offset,songs,item,code,colors,colormap):
         cl = n_songs - list_height
     else:
         cl = item - top_half
-    for i in range(cl,cl+list_height):
+    for i in range(cl, cl + list_height):
         if i < n_songs:
             song = songs[i]
             if "id" in song:
-                s = str(song['trackNumber']) + '. ' + (song['title'] if 'title' in song else 'Unnamed Track')
+                s = str(song['trackNumber']) + '. ' + \
+                    (song['title'] if 'title' in song else 'Unnamed Track')
             else:
                 s = song['name']
             slen = len(s)
             s = s.encode(code)
             try:
                 if i == item:
-                    drawline(scr,offset+i-cl,width,slen,(s,colors[colormap['current-item']]))
+                    drawline(
+                        scr, offset + i - cl, width, slen, (s, colors[colormap['current-item']]))
                 else:
-                    drawline(scr,offset+i-cl,width,slen,(s,colors[colormap['text']]))
+                    drawline(
+                        scr, offset + i - cl, width, slen, (s, colors[colormap['text']]))
             except curses.error:
                 pass
         else:
             break
 
-def pause(p,q):
+
+def pause(p, q):
     p.stdin.write(' ')
+
 
 def play(song):
     with open(os.devnull, 'w') as temp:
-        proc =  subprocess.Popen(["mpv", "-no-video", "%s" % song], stdin=subprocess.PIPE, stdout=temp, stderr=temp)
+        proc = subprocess.Popen(
+            ["mpv", "-no-video", "%s" % song], stdin=subprocess.PIPE, stdout=temp, stderr=temp)
         return proc
 
-def collect(tree,l,c_item):
+
+def collect(tree, l, c_item):
     n = 0
     c = 0
     for i in tree:
@@ -210,61 +231,70 @@ def collect(tree,l,c_item):
             n = len(l)
         c += 1
         if 'subtree' in i:
-            collect(i['subtree'],l,-1)
+            collect(i['subtree'], l, -1)
         else:
             l.append(i)
     return l, n
+
 
 def gen_trees(library):
     # Using defaultdict we can group song dicts by artist:
     artists_dict = collections.defaultdict(list)
     for i in library:
-        # Add artist of i as key if it doesn't exist and add song as key list item
+        # Add artist of i as key if it doesn't exist and add song as key list
+        # item
         artists_dict[i['artist']].append(i)
     # Initialise lists for artists and albums to return
     artists = []
     albums = []
-    # With our dictionary of artists we can now loop through and partition in to albums
-    for artist,songs_of_artist in artists_dict.iteritems():
-        # Create a new default dict for each album in the same way that the artists were partitioned
+    # With our dictionary of artists we can now loop through and partition in
+    # to albums
+    for artist, songs_of_artist in artists_dict.iteritems():
+        # Create a new default dict for each album in the same way that the
+        # artists were partitioned
         albums_of_artist_dict = collections.defaultdict(list)
         for i in songs_of_artist:
             albums_of_artist_dict[i['album']].append(i)
         albums_of_artist = []
-        for album,tracks in albums_of_artist_dict.iteritems():
+        for album, tracks in albums_of_artist_dict.iteritems():
             album_name = album
             if album == "":
                 album_name = "Untitled Album"
-            albums_of_artist.append({ "name":album_name,
-                                      "subtree":sorted(tracks,key=itemgetter('trackNumber')),
-                                      "subtreeline":0 })
+            albums_of_artist.append({"name": album_name,
+                                     "subtree": sorted(tracks, key=itemgetter('trackNumber')),
+                                     "subtreeline": 0})
         albums = albums + albums_of_artist
-        artists.append({ "name":artist,
-                         "subtree":sorted(albums_of_artist,key=lambda x: x['name'].lower()),
-                         "subtreeline":0 })
+        artists.append({"name": artist,
+                        "subtree": sorted(albums_of_artist, key=lambda x: x['name'].lower()),
+                        "subtreeline": 0})
     return sorted(artists, key=lambda x: x['name'].lower()), sorted(albums, key=lambda x: x['name'].lower())
+
 
 def list_playlists(playlists_contents):
     playlists = []
     for pl in playlists_contents:
-        playlists.append( { "name":pl['name'], "subtree":pl['tracks'], "subtreeline":0 } )
+        playlists.append(
+            {"name": pl['name'], "subtree": pl['tracks'], "subtreeline": 0})
     return playlists
 
-def headphones(scr,height,code):
+
+def headphones(scr, height, code):
     try:
         with open(os.path.expanduser("~/.thunnerlogo")) as f:
             lines = f.readlines()
-            for i in range(0,len(lines)-1):
-                if i < height-1:
-                    scr.addstr(i,0,lines[i].encode(code))
+            for i in range(0, len(lines) - 1):
+                if i < height - 1:
+                    scr.addstr(i, 0, lines[i].encode(code))
     except IOError:
-        scr.addstr(0,0,"Connecting...".encode(code))
+        scr.addstr(0, 0, "Connecting...".encode(code))
+
 
 def switch_menu(menu):
     new_list = menu["subtree"]
     new_item = menu["subtreeline"]
     new_n = len(new_list)
     return menu, new_list, new_item, new_n
+
 
 def main():
 
@@ -284,11 +314,11 @@ def main():
     try:
         height, width = scr.getmaxyx()
 
-        headphones(scr,height,code)
+        headphones(scr, height, code)
 
         scr.refresh()
 
-        api = apiinit(config['email'],config['pass'])
+        api = apiinit(config['email'], config['pass'])
 
         if not api.is_authenticated():
             print "Credentials were not accepted. Exiting..."
@@ -301,12 +331,14 @@ def main():
         playlists = list_playlists(playlists_contents)
 
         scr.clear()
-        toplevel = { "name":"Toplevel",
-                     "subtree":[ {"name":"Artists", "subtree":artists, "subtreeline":0 },
-                                 {"name":"Albums", "subtree":albums, "subtreeline":0 },
-                                 {"name":"Songs", "subtree":library, "subtreeline":0 },
-                                 {"name":"Playlists", "subtree":playlists, "subtreeline":0 }],
-                     "subtreeline":0 }
+        toplevel = {"name": "Toplevel",
+                    "subtree": [{"name": "Artists", "subtree": artists, "subtreeline": 0},
+                                {"name": "Albums", "subtree": albums,
+                                    "subtreeline": 0},
+                                {"name": "Songs", "subtree": library,
+                                    "subtreeline": 0},
+                                {"name": "Playlists", "subtree": playlists, "subtreeline": 0}],
+                    "subtreeline": 0}
 
         c_menu = toplevel
         c_list = c_menu["subtree"]
@@ -315,11 +347,11 @@ def main():
 
         previous = []
 
-        timeout = 17 # getch timeout in ms
+        timeout = 17  # getch timeout in ms
 
         header_height = 2
         footer_height = 2
-        viewheight = height-header_height-footer_height
+        viewheight = height - header_height - footer_height
 
         queue = []
         q_n = 0
@@ -329,21 +361,25 @@ def main():
         current_song = None
 
         scr.erase()
-        header(scr,width,previous,c_menu,code,colors,colormap)
-        footer(scr,height,width,[(status,'status')],code,colors,colormap)
-        drawlist(scr,viewheight,width,header_height,c_list,c_item,code,colors,colormap)
+        header(scr, width, previous, c_menu, code, colors, colormap)
+        footer(
+            scr, height, width, [(status, 'status')], code, colors, colormap)
+        drawlist(scr, viewheight, width, header_height,
+                 c_list, c_item, code, colors, colormap)
         scr.timeout(timeout)
         scr.refresh()
         while True:
             c = scr.getch()
             if c == -1:
                 # We've had no input
-                # Let's check if a song has stopped playing and we need to play the next in the queue
+                # Let's check if a song has stopped playing and we need to play
+                # the next in the queue
                 if isinstance(playing, subprocess.Popen) and playing.poll() != None:
                     # Song has stopped playing
                     q_n = (q_n + 1) % len(queue)
                     song = queue[q_n]
-                    playing = play(api.get_stream_url(song['id'],config['deviceid']))
+                    playing = play(
+                        api.get_stream_url(song['id'], config['deviceid']))
                     current_song = song
             elif c == ord('q'):
                 if isinstance(playing, subprocess.Popen):
@@ -360,7 +396,7 @@ def main():
                         queue = []
                     if c == ord('\n'):
                         if c_list != []:
-                            l, n = collect(c_list,[],c_item)
+                            l, n = collect(c_list, [], c_item)
                             queue = l
                             q_n = n
                             q_length = len(queue)
@@ -370,7 +406,7 @@ def main():
                             q_n = 0
                             q_length = 1
                         else:
-                            l, n = collect(c_list[c_item]['subtree'],[],'')
+                            l, n = collect(c_list[c_item]['subtree'], [], '')
                             queue = l
                             q_n = n
                             q_length = len(queue)
@@ -378,13 +414,15 @@ def main():
                         song = queue[q_n]
                         current_song = song
                         status = 'Playing:'
-                        playing = play(api.get_stream_url(song['id'], config['deviceid']))
+                        playing = play(
+                            api.get_stream_url(song['id'], config['deviceid']))
             elif c == ord('.'):
                 if isinstance(playing, subprocess.Popen):
                     playing.terminate()
                     q_n = (q_n + 1) % len(queue)
                     song = queue[q_n]
-                    playing = play(api.get_stream_url(song['id'], config['deviceid']))
+                    playing = play(
+                        api.get_stream_url(song['id'], config['deviceid']))
                     current_song = song
                     status = 'Playing:'
             elif c == ord(','):
@@ -392,7 +430,8 @@ def main():
                     playing.terminate()
                     q_n = (q_n - 1) % len(queue)
                     song = queue[q_n]
-                    playing = play(api.get_stream_url(song['id'], config['deviceid']))
+                    playing = play(
+                        api.get_stream_url(song['id'], config['deviceid']))
                     current_song = song
                     status = 'Playing:'
             elif c == curses.KEY_LEFT:
@@ -403,7 +442,7 @@ def main():
                     previous.append(c_menu)
                     c_menu, c_list, c_item, c_n = switch_menu(c_list[c_item])
             elif c == curses.KEY_DOWN:
-                if c_item < c_n-1:
+                if c_item < c_n - 1:
                     c_item += 1
                 c_menu["subtreeline"] = c_item
             elif c == curses.KEY_UP:
@@ -416,24 +455,27 @@ def main():
                 else:
                     status = 'Playing:'
                 q = Queue()
-                thread = Thread(target=pause, args=(playing,q))
+                thread = Thread(target=pause, args=(playing, q))
                 thread.daemon = True
                 thread.start()
             elif c == curses.KEY_RESIZE:
                 height, width = scr.getmaxyx()
-                viewheight = height-header_height-footer_height
+                viewheight = height - header_height - footer_height
             # Redraw the screen
             scr.erase()
-            header(scr,width,previous,c_menu,code,colors,colormap)
+            header(scr, width, previous, c_menu, code, colors, colormap)
             if current_song == None:
-                footer(scr,height,width,[(status,'status')],code,colors,colormap)
+                footer(
+                    scr, height, width, [(status, 'status')], code, colors, colormap)
             else:
-                footer(scr,height,width,[(status,'status'),
-                                         (' ','text'),
-                                         (current_song['artist'],'current-artist'),
-                                         (' - ','footer-sep'),
-                                         (current_song['title'] if 'title' in current_song else 'Unknown Track','current-song')],code,colors,colormap)
-            drawlist(scr,viewheight,width,header_height,c_list,c_item,code,colors,colormap)
+                footer(scr, height, width, [(status, 'status'),
+                                            (' ', 'text'),
+                                            (current_song[
+                                             'artist'], 'current-artist'),
+                                            (' - ', 'footer-sep'),
+                                            (current_song['title'] if 'title' in current_song else 'Unknown Track', 'current-song')], code, colors, colormap)
+            drawlist(scr, viewheight, width, header_height,
+                     c_list, c_item, code, colors, colormap)
             scr.refresh()
     finally:
         if isinstance(playing, subprocess.Popen):
