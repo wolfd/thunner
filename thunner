@@ -14,49 +14,49 @@
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL COPYRIGHT HOLDERS OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
 import curses
 import os
-import time
 import locale
 import subprocess
 import collections
 import sys
-import signal
+import re
 
 # Disable InsecureRequestWarning reporting
 import requests
 requests.packages.urllib3.disable_warnings()
 
-from Queue import Queue, Empty
 from threading import Thread
 from gmusicapi import Mobileclient
 from getpass import getpass
 from operator import itemgetter
 
+
 def parse_config():
-    defaultcolors = { 'thunner':'default',
-                      'header-text':'default',
-                      'header-sep':'default',
-                      'header-border':'default',
-                      'footer-border':'default',
-                      'footer-sep':'default',
-                      'status':'default',
-                      'current-artist':'default',
-                      'current-song':'default',
-                      'current-item':'default',
-                      'text':'default' }
-    config = { 'colors':[], 'assignments':defaultcolors }
+    defaultcolors = {'thunner': 'default',
+                     'header-text': 'default',
+                     'header-sep': 'default',
+                     'header-border': 'default',
+                     'footer-border': 'default',
+                     'footer-sep': 'default',
+                     'status': 'default',
+                     'current-artist': 'default',
+                     'current-song': 'default',
+                     'current-item': 'default',
+                     'text': 'default'}
+    config = {'colors': [], 'assignments': defaultcolors}
     try:
         with open(os.path.expanduser("~/.thunnerrc")) as f:
             lines = f.readlines()
@@ -65,20 +65,23 @@ def parse_config():
                 if words[0] == 'email':
                     config['email'] = words[1]
                 elif words[0] == 'pass':
-                    config['pass'] = i.split(' ',1)[1]
+                    config['pass'] = i.split(' ', 1)[1]
                 elif words[0] == 'deviceid':
                     config['deviceid'] = words[1]
                 elif words[0] == 'color':
-                    config['colors'].append((words[1],words[2],words[3]))
+                    config['colors'].append((words[1], words[2], words[3]))
                 elif words[0] == 'assign':
                     config['assignments'][words[2]] = words[1]
             if 'pass' not in config:
-		    # If Password not in Config, ask for it
-		    config['pass'] = getpass()
+                    # If Password not in Config, ask for it
+                config['pass'] = getpass()
+            if 'deviceid' not in config:
+                config['deviceid'] = None
     except IOError:
         print "Can't find ~/.thunnerrc"
         sys.exit()
     return config
+
 
 def color(c):
     if c == 'default':
@@ -100,20 +103,23 @@ def color(c):
     elif c == 'white':
         return curses.COLOR_WHITE
 
+
 def name_colors(colordefs):
-    colormap = { 'default':1 }
-    curses.init_pair(1,-1,-1)
+    colormap = {'default': 1}
+    curses.init_pair(1, -1, -1)
     c = 2
     for i in colordefs:
-        curses.init_pair(c,color(i[1]),color(i[2]))
+        curses.init_pair(c, color(i[1]), color(i[2]))
         colormap[i[0]] = c
         c += 1
     return colormap
 
-def apiinit(email,password):
+
+def apiinit(email, password):
     api = Mobileclient()
-    api.login(email, password)
+    api.login(email, password, Mobileclient.FROM_MAC_ADDRESS)
     return api
+
 
 def scrinit():
     stdscr = curses.initscr()
@@ -124,46 +130,69 @@ def scrinit():
     stdscr.keypad(1)
     return stdscr
 
+
 def scrrelease(s):
     curses.nocbreak()
     s.keypad(0)
     curses.echo()
     curses.endwin()
 
-def drawstring(scr,y,x,width,cslist,code,colors,colormap):
+
+def drawstring(scr, y, x, width, cslist, code, colors, colormap):
     for i in cslist:
         s = i[0]
         col = i[1]
         if (width - x) > 0:
-            scr.addnstr(y,x,s.encode(code),width-x,curses.color_pair(colors[colormap[col]]))
+            scr.addnstr(
+                y, x, s.encode(code), width - x,
+                curses.color_pair(colors[colormap[col]]))
         x += len(s)
 
-def drawline(scr,y,width,slen,cs):
+
+def drawline(scr, y, width, slen, cs):
     s = cs[0]
     col = cs[1]
-    scr.addnstr(y,0,s,width,curses.color_pair(col))
-    for i in range(slen,width):
-        scr.addstr(y,slen,' ',curses.color_pair(col))
+    scr.addnstr(y, 0, s, width, curses.color_pair(col))
+    for i in range(slen, width):
+        scr.addstr(y, slen, ' ', curses.color_pair(col))
         slen += 1
 
-def header(scr,width,parents,current,code,colors,colormap):
-    locstring = [('thunner','thunner')]
+
+def header(scr, width, parents, current, code, colors, colormap):
+    locstring = [('thunner', 'thunner')]
     for i in parents[1:]:
-        locstring.append((' > ','header-sep'))
-        locstring.append((i['name'],'header-text'))
+        locstring.append((' > ', 'header-sep'))
+        locstring.append((i['name'], 'header-text'))
     if parents:
-        locstring.append((' > ','header-sep'))
-        locstring.append((current['name'],'header-text'))
-    drawstring(scr,0,0,width,locstring,code,colors,colormap)
-    for i in range(0,width):
-        scr.addch(1,i,curses.ACS_HLINE,curses.color_pair(colors[colormap['header-border']]))
+        locstring.append((' > ', 'header-sep'))
+        locstring.append((current['name'], 'header-text'))
+    drawstring(scr, 0, 0, width, locstring, code, colors, colormap)
+    for i in range(0, width):
+        scr.addch(1, i, curses.ACS_HLINE, curses.color_pair(
+            colors[colormap['header-border']]))
 
-def footer(scr,height,width,status,code,colors,colormap):
-    for i in range(0,width):
-        scr.addch(height-2,i,curses.ACS_HLINE,curses.color_pair(colors[colormap['footer-border']]))
-    drawstring(scr,height-1,0,width,status,code,colors,colormap)
 
-def drawlist(scr,list_height,width,offset,songs,item,code,colors,colormap):
+def footer(scr, height, width, status, code, colors, colormap, progress=0):
+    scr.addch(height - 2, 0, '[',
+              curses.color_pair(colors[colormap['footer-border']]))
+    blocks = int((float(progress) / 100) * (width - 2))
+
+    # draw progress blocks
+    for i in range(1, blocks + 1):
+        scr.addch(height - 2, i, curses.ACS_BLOCK,
+                  curses.color_pair(colors[colormap['footer-border']]))
+
+    # draw rest of border
+    for i in range(blocks + 1, width - 1):
+        scr.addch(height - 2, i, curses.ACS_HLINE,
+                  curses.color_pair(colors[colormap['footer-border']]))
+    scr.addch(height - 2, width - 1, ']',
+              curses.color_pair(colors[colormap['footer-border']]))
+    drawstring(scr, height - 1, 0, width, status, code, colors, colormap)
+
+
+def drawlist(scr, list_height, width, offset, songs, item, code, colors,
+             colormap):
     n_songs = len(songs)
     top_half = list_height // 2
     bottom_half = list_height - top_half
@@ -175,34 +204,32 @@ def drawlist(scr,list_height,width,offset,songs,item,code,colors,colormap):
         cl = n_songs - list_height
     else:
         cl = item - top_half
-    for i in range(cl,cl+list_height):
+    for i in range(cl, cl + list_height):
         if i < n_songs:
             song = songs[i]
             if "id" in song:
-                s = str(song['trackNumber']) + '. ' + (song['title'] if 'title' in song else 'Unnamed Track')
+                s = str(song['trackNumber']) + '. ' + \
+                    (song['title'] if 'title' in song else 'Unnamed Track')
             else:
                 s = song['name']
             slen = len(s)
             s = s.encode(code)
             try:
                 if i == item:
-                    drawline(scr,offset+i-cl,width,slen,(s,colors[colormap['current-item']]))
+                    drawline(
+                        scr, offset + i - cl, width, slen,
+                        (s, colors[colormap['current-item']]))
                 else:
-                    drawline(scr,offset+i-cl,width,slen,(s,colors[colormap['text']]))
+                    drawline(
+                        scr, offset + i - cl, width, slen,
+                        (s, colors[colormap['text']]))
             except curses.error:
                 pass
         else:
             break
 
-def pause(p,q):
-    p.stdin.write(' ')
 
-def play(song):
-    with open(os.devnull, 'w') as temp:
-        proc =  subprocess.Popen(["mpv", "-no-video", "%s" % song], stdin=subprocess.PIPE, stdout=temp, stderr=temp)
-        return proc
-
-def collect(tree,l,c_item):
+def collect(tree, l, c_item):
     n = 0
     c = 0
     for i in tree:
@@ -210,55 +237,68 @@ def collect(tree,l,c_item):
             n = len(l)
         c += 1
         if 'subtree' in i:
-            collect(i['subtree'],l,-1)
+            collect(i['subtree'], l, -1)
         else:
             l.append(i)
     return l, n
+
 
 def gen_trees(library):
     # Using defaultdict we can group song dicts by artist:
     artists_dict = collections.defaultdict(list)
     for i in library:
-        # Add artist of i as key if it doesn't exist and add song as key list item
+        # Add artist of i as key if it doesn't exist and add song as key list
+        # item
         artists_dict[i['artist']].append(i)
     # Initialise lists for artists and albums to return
     artists = []
     albums = []
-    # With our dictionary of artists we can now loop through and partition in to albums
-    for artist,songs_of_artist in artists_dict.iteritems():
-        # Create a new default dict for each album in the same way that the artists were partitioned
+    # With our dictionary of artists we can now loop through and partition in
+    # to albums
+    for artist, songs_of_artist in artists_dict.iteritems():
+        # Create a new default dict for each album in the same way that the
+        # artists were partitioned
         albums_of_artist_dict = collections.defaultdict(list)
         for i in songs_of_artist:
             albums_of_artist_dict[i['album']].append(i)
         albums_of_artist = []
-        for album,tracks in albums_of_artist_dict.iteritems():
+        for album, tracks in albums_of_artist_dict.iteritems():
             album_name = album
             if album == "":
                 album_name = "Untitled Album"
-            albums_of_artist.append({ "name":album_name,
-                                      "subtree":sorted(tracks,key=itemgetter('trackNumber')),
-                                      "subtreeline":0 })
+            albums_of_artist.append({"name": album_name,
+                                     "subtree": sorted(
+                                         tracks,
+                                         key=itemgetter('trackNumber')),
+                                     "subtreeline": 0})
         albums = albums + albums_of_artist
-        artists.append({ "name":artist,
-                         "subtree":sorted(albums_of_artist,key=lambda x: x['name'].lower()),
-                         "subtreeline":0 })
-    return sorted(artists, key=lambda x: x['name'].lower()), sorted(albums, key=lambda x: x['name'].lower())
+        artists.append({"name": artist,
+                        "subtree": sorted(
+                            albums_of_artist,
+                            key=lambda x: x['name'].lower()),
+                        "subtreeline": 0})
+    return (sorted(artists, key=lambda x: x['name'].lower()),
+            sorted(albums, key=lambda x: x['name'].lower()))
+
 
 def list_playlists(playlists_contents):
     playlists = []
     for pl in playlists_contents:
-        playlists.append( { "name":pl['name'], "subtree":pl['tracks'], "subtreeline":0 } )
+        playlists.append(
+            {"name": pl['name'], "subtree": pl['tracks'], "subtreeline": 0})
     return playlists
 
-def headphones(scr,height,code):
+
+def headphones(scr, height, code):
     try:
         with open(os.path.expanduser("~/.thunnerlogo")) as f:
             lines = f.readlines()
-            for i in range(0,len(lines)-1):
-                if i < height-1:
-                    scr.addstr(i,0,lines[i].encode(code))
+            for i in range(0, len(lines) - 1):
+                if i < height - 1:
+                    scr.addstr(i, 0, lines[i].encode(code))
     except IOError:
-        scr.addstr(0,0,"Connecting...".encode(code))
+        scr.addstr(0, 0, "Connecting...".encode(code))
+
 
 def switch_menu(menu):
     new_list = menu["subtree"]
@@ -266,182 +306,252 @@ def switch_menu(menu):
     new_n = len(new_list)
     return menu, new_list, new_item, new_n
 
-def main():
 
-    config = parse_config()
+class Player:
+    def __init__(self):
+        self.progress = 0
+        self.playing = None
+        self.stat_reader = None
 
-    # Because I'd like to see some umlauts (rather than garbage):
-    locale.setlocale(locale.LC_ALL, '')
-    code = locale.getpreferredencoding()
+    def run(self):
 
-    scr = scrinit()
-    curses.use_default_colors()
-    colors = name_colors(config['colors'])
-    colormap = config['assignments']
+        config = parse_config()
 
-    api = None
-    playing = None
-    try:
-        height, width = scr.getmaxyx()
+        # Because I'd like to see some umlauts (rather than garbage):
+        locale.setlocale(locale.LC_ALL, '')
+        code = locale.getpreferredencoding()
 
-        headphones(scr,height,code)
+        scr = scrinit()
+        curses.use_default_colors()
+        colors = name_colors(config['colors'])
+        colormap = config['assignments']
 
-        scr.refresh()
+        api = None
+        try:
+            height, width = scr.getmaxyx()
 
-        api = apiinit(config['email'],config['pass'])
+            headphones(scr, height, code)
 
-        if not api.is_authenticated():
-            print "Credentials were not accepted. Exiting..."
-            return
+            scr.refresh()
 
-        library = api.get_all_songs()
-        artists, albums = gen_trees(library)
+            api = apiinit(config['email'], config['pass'])
 
-        playlists_contents = api.get_all_user_playlist_contents()
-        playlists = list_playlists(playlists_contents)
+            if not api.is_authenticated():
+                print "Credentials were not accepted. Exiting..."
+                return
 
-        scr.clear()
-        toplevel = { "name":"Toplevel",
-                     "subtree":[ {"name":"Artists", "subtree":artists, "subtreeline":0 },
-                                 {"name":"Albums", "subtree":albums, "subtreeline":0 },
-                                 {"name":"Songs", "subtree":library, "subtreeline":0 },
-                                 {"name":"Playlists", "subtree":playlists, "subtreeline":0 }],
-                     "subtreeline":0 }
-
-        c_menu = toplevel
-        c_list = c_menu["subtree"]
-        c_item = c_menu["subtreeline"]
-        c_n = len(c_list)
-
-        previous = []
-
-        timeout = 17 # getch timeout in ms
-
-        header_height = 2
-        footer_height = 2
-        viewheight = height-header_height-footer_height
-
-        queue = []
-        q_n = 0
-        q_length = 0
-
-        status = 'Stopped'
-        current_song = None
-
-        scr.erase()
-        header(scr,width,previous,c_menu,code,colors,colormap)
-        footer(scr,height,width,[(status,'status')],code,colors,colormap)
-        drawlist(scr,viewheight,width,header_height,c_list,c_item,code,colors,colormap)
-        scr.timeout(timeout)
-        scr.refresh()
-        while True:
-            c = scr.getch()
-            if c == -1:
-                # We've had no input
-                # Let's check if a song has stopped playing and we need to play the next in the queue
-                if isinstance(playing, subprocess.Popen) and playing.poll() != None:
-                    # Song has stopped playing
-                    q_n = (q_n + 1) % len(queue)
-                    song = queue[q_n]
-                    playing = play(api.get_stream_url(song['id'],config['deviceid']))
-                    current_song = song
-            elif c == ord('q'):
-                if isinstance(playing, subprocess.Popen):
-                    playing.terminate()
-                    playing = None
-                    break
+            if config['deviceid'] is None:
+                devices = filter(
+                    lambda dev: dev['type'] in ['IOS', 'ANDROID'],
+                    api.get_registered_devices())
+                if len(devices) > 0:
+                    config['deviceid'] = re.sub(r'0x', '', devices[0]['id'])
                 else:
-                    break
-            elif c == ord('\n') or c == ord(']'):
-                if c_list:
-                    i = c_list[c_item]
-                    if isinstance(playing, subprocess.Popen):
-                        playing.terminate()
-                        queue = []
-                    if c == ord('\n'):
-                        if c_list != []:
-                            l, n = collect(c_list,[],c_item)
-                            queue = l
-                            q_n = n
-                            q_length = len(queue)
-                    elif c == ord(']'):
-                        if 'id' in i:
-                            queue = [i]
-                            q_n = 0
-                            q_length = 1
-                        else:
-                            l, n = collect(c_list[c_item]['subtree'],[],'')
-                            queue = l
-                            q_n = n
-                            q_length = len(queue)
-                    if queue != [] and q_n < q_length:
+                    print ("No already-registered mobile devices found."
+                           "Exiting...")
+                    return
+
+            library = api.get_all_songs()
+            artists, albums = gen_trees(library)
+
+            playlists_contents = api.get_all_user_playlist_contents()
+            playlists = list_playlists(playlists_contents)
+
+            scr.clear()
+            toplevel = {"name": "Toplevel",
+                        "subtree": [{"name": "Artists", "subtree": artists,
+                                     "subtreeline": 0},
+                                    {"name": "Albums", "subtree": albums,
+                                        "subtreeline": 0},
+                                    {"name": "Songs", "subtree": library,
+                                        "subtreeline": 0},
+                                    {"name": "Playlists", "subtree": playlists,
+                                     "subtreeline": 0}],
+                        "subtreeline": 0}
+
+            c_menu = toplevel
+            c_list = c_menu["subtree"]
+            c_item = c_menu["subtreeline"]
+            c_n = len(c_list)
+
+            previous = []
+
+            timeout = 17  # getch timeout in ms
+
+            header_height = 2
+            footer_height = 2
+            viewheight = height - header_height - footer_height
+
+            queue = []
+            q_n = 0
+            q_length = 0
+
+            status = 'Stopped'
+            current_song = None
+
+            scr.erase()
+            header(scr, width, previous, c_menu, code, colors, colormap)
+            footer(
+                scr, height, width, [(status, 'status')], code, colors,
+                colormap, progress=self.progress)
+            drawlist(scr, viewheight, width, header_height,
+                     c_list, c_item, code, colors, colormap)
+            scr.timeout(timeout)
+            scr.refresh()
+            while True:
+                c = scr.getch()
+                if c == -1:
+                    # We've had no input
+                    # Let's check if a song has stopped playing and we need to
+                    # play the next in the queue
+                    if (self.playing is not None and
+                            self.playing.poll() is not None):
+                        # Song has stopped playing
+                        q_n = (q_n + 1) % len(queue)
                         song = queue[q_n]
+                        self.play(api.get_stream_url(song['id'],
+                                  config['deviceid']))
+                        current_song = song
+                elif c == ord('q'):
+                    break
+                elif c == ord('\n') or c == ord(']'):
+                    if c_list:
+                        i = c_list[c_item]
+                        if self.playing is not None:
+                            self.stop()
+                            queue = []
+                        if c == ord('\n'):
+                            if c_list != []:
+                                l, n = collect(c_list, [], c_item)
+                                queue = l
+                                q_n = n
+                                q_length = len(queue)
+                        elif c == ord(']'):
+                            if 'id' in i:
+                                queue = [i]
+                                q_n = 0
+                                q_length = 1
+                            else:
+                                l, n = collect(c_list[c_item]['subtree'],
+                                               [], '')
+                                queue = l
+                                q_n = n
+                                q_length = len(queue)
+                        if queue != [] and q_n < q_length:
+                            song = queue[q_n]
+                            current_song = song
+                            status = 'Playing:'
+                            self.play(
+                                api.get_stream_url(song['id'],
+                                                   config['deviceid']))
+                elif c == ord('.'):
+                    if self.playing is not None:
+                        q_n = (q_n + 1) % len(queue)
+                        song = queue[q_n]
+                        self.play(api.get_stream_url(song['id'],
+                                  config['deviceid']))
                         current_song = song
                         status = 'Playing:'
-                        playing = play(api.get_stream_url(song['id'], config['deviceid']))
-            elif c == ord('.'):
-                if isinstance(playing, subprocess.Popen):
-                    playing.terminate()
-                    q_n = (q_n + 1) % len(queue)
-                    song = queue[q_n]
-                    playing = play(api.get_stream_url(song['id'], config['deviceid']))
-                    current_song = song
-                    status = 'Playing:'
-            elif c == ord(','):
-                if isinstance(playing, subprocess.Popen):
-                    playing.terminate()
-                    q_n = (q_n - 1) % len(queue)
-                    song = queue[q_n]
-                    playing = play(api.get_stream_url(song['id'], config['deviceid']))
-                    current_song = song
-                    status = 'Playing:'
-            elif c == curses.KEY_LEFT:
-                if previous:
-                    c_menu, c_list, c_item, c_n = switch_menu(previous.pop())
-            elif c == curses.KEY_RIGHT:
-                if c_list and "subtree" in c_list[c_item]:
-                    previous.append(c_menu)
-                    c_menu, c_list, c_item, c_n = switch_menu(c_list[c_item])
-            elif c == curses.KEY_DOWN:
-                if c_item < c_n-1:
-                    c_item += 1
-                c_menu["subtreeline"] = c_item
-            elif c == curses.KEY_UP:
-                if c_item > 0:
-                    c_item -= 1
-                c_menu["subtreeline"] = c_item
-            elif c == ord(' '):
-                if status == 'Playing:':
-                    status = 'Paused:'
+                elif c == ord(','):
+                    if self.playing is not None:
+                        q_n = (q_n - 1) % len(queue)
+                        song = queue[q_n]
+                        self.play(api.get_stream_url(song['id'],
+                                                     config['deviceid']))
+                        current_song = song
+                        status = 'Playing:'
+                elif c == curses.KEY_LEFT:
+                    if previous:
+                        c_menu, c_list, c_item, c_n = switch_menu(
+                            previous.pop())
+                elif c == curses.KEY_RIGHT:
+                    if c_list and "subtree" in c_list[c_item]:
+                        previous.append(c_menu)
+                        c_menu, c_list, c_item, c_n = switch_menu(
+                            c_list[c_item])
+                elif c == curses.KEY_DOWN:
+                    if c_item < c_n - 1:
+                        c_item += 1
+                    c_menu["subtreeline"] = c_item
+                elif c == curses.KEY_UP:
+                    if c_item > 0:
+                        c_item -= 1
+                    c_menu["subtreeline"] = c_item
+                elif c == ord(' '):
+                    if status == 'Playing:':
+                        status = 'Paused:'
+                    else:
+                        status = 'Playing:'
+                    self.pause()
+                elif c == curses.KEY_RESIZE:
+                    height, width = scr.getmaxyx()
+                    viewheight = height - header_height - footer_height
+                # Redraw the screen
+                scr.erase()
+                header(scr, width, previous, c_menu, code, colors, colormap)
+                if current_song is None:
+                    footer(
+                        scr, height, width, [(status, 'status')], code, colors,
+                        colormap, progress=self.progress)
                 else:
-                    status = 'Playing:'
-                q = Queue()
-                thread = Thread(target=pause, args=(playing,q))
-                thread.daemon = True
-                thread.start()
-            elif c == curses.KEY_RESIZE:
-                height, width = scr.getmaxyx()
-                viewheight = height-header_height-footer_height
-            # Redraw the screen
-            scr.erase()
-            header(scr,width,previous,c_menu,code,colors,colormap)
-            if current_song == None:
-                footer(scr,height,width,[(status,'status')],code,colors,colormap)
-            else:
-                footer(scr,height,width,[(status,'status'),
-                                         (' ','text'),
-                                         (current_song['artist'],'current-artist'),
-                                         (' - ','footer-sep'),
-                                         (current_song['title'] if 'title' in current_song else 'Unknown Track','current-song')],code,colors,colormap)
-            drawlist(scr,viewheight,width,header_height,c_list,c_item,code,colors,colormap)
-            scr.refresh()
-    finally:
-        if isinstance(playing, subprocess.Popen):
-            playing.terminate()
-        scrrelease(scr)
-        if api:
-            api.logout()
-    return
+                    footer(scr, height, width,
+                           [(status, 'status'),
+                            (' ', 'text'),
+                            (current_song['artist'], 'current-artist'),
+                            (' - ', 'footer-sep'),
+                            (current_song['title'] if 'title' in current_song
+                                else 'Unknown Track', 'current-song')],
+                           code, colors, colormap, progress=self.progress)
+                drawlist(scr, viewheight, width, header_height,
+                         c_list, c_item, code, colors, colormap)
+                scr.refresh()
+        finally:
+            self.stop()
+            scrrelease(scr)
+            if api:
+                api.logout()
+        return
+
+    def play(self, song):
+        if self.playing is not None:
+            self.stop()
+        # with open(os.devnull, 'w') as temp:
+        with open('mpv.out', 'w') as temp:
+            self.playing = subprocess.Popen(
+                ["mpv", "--no-video", "--status-msg='${percent-pos}'",
+                 "%s" % song],
+                stdin=subprocess.PIPE, stdout=temp,
+                stderr=subprocess.PIPE, bufsize=0)
+        if self.stat_reader is not None:
+            self.stat_reader.join()
+        self.stat_reader = Thread(target=self.read_mpv_status)
+        self.stat_reader.start()
+
+    def pause(self):
+        if self.playing is not None:
+            self.playing.stdin.write('p')
+            self.playing.stdin.flush()
+
+    def stop(self):
+        self.progress = 0
+        try:
+            if self.playing is not None:
+                self.playing.terminate()
+        except OSError:
+            pass  # No such process (already terminated), it's OK
+        self.playing = None
+
+    def read_mpv_status(self):
+        while True:
+            try:
+                out = self.playing.stderr.readline()
+                prog = re.search(r'([0-9]{1,2})', out)
+                if prog is not None:
+                    self.progress = prog.group(1)
+            except Exception:
+                break
+
 
 if __name__ == '__main__':
-    main()
+    player = Player()
+    player.run()

@@ -28,7 +28,7 @@ Keys
 * ] : play (plays only the item under the cursor, be that a song/album/artist or higher level menu item.
 * . : next
 * , : previous
-* spacebar : pause 
+* spacebar : pause
 * q : quit
 
 Configuration
@@ -44,11 +44,13 @@ Configuration of thunner is via `~/.thunnerrc`. An example file is as follows:
         assign myhighlight current-item
         assign mynormal text
 
-`email`, `pass` and `deviceid` are required (yes, plaintext password is not exactly secure). Spaces are allowed in `pass`. Any number of `color` and `assign` lines are allowed.
+`email` is required.
+`pass` is not required, although if it is omitted, you will be prompted for your password on each startup. Spaces are allowed in `pass`.
+Any number of `color` and `assign` lines are allowed.
 
 An "app password" can be used to avoid storing your Google password in plaintext, this is strongly recommended. These can be obtained [here](https://security.google.com/settings/security/apppasswords). App passwords are also the only way to use thunner if you have 2-factor auth set up.
 
-`deviceid` is a mobile device ID. This 16-digit hexadecimal string can be found by dialing `*#*#8255#*#*` or downloading [this DeviceID app](https://play.google.com/store/apps/details?id=com.evozi.deviceid) from the Google Play Store.
+`deviceid` is a mobile device ID. This 16-digit hexadecimal string can be found by dialing `*#*#8255#*#*` or downloading [this DeviceID app](https://play.google.com/store/apps/details?id=com.evozi.deviceid) from the Google Play Store. If `deviceid` is omitted, the ID of one of your already-registered mobile devices will be selected.
 
 `color` takes three arguements: a name (which the user chooses), a foreground colour and a background colour. Foreground and background colours can be of the following values:
 
@@ -95,8 +97,8 @@ To Do
 * Check compatibility with other OSes
 * Add more customisations
 * Add RGB definition to configuration file for terminals that support `init_color`
-* Add support for pass
 * Hide lag from API calls
+* Add search mode
 
 Known Issues
 ------------
